@@ -1,0 +1,124 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function getRole(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
+    }
+
+    function isStaffOrAdmin() {
+      return isSignedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && getRole(request.auth.uid) in ['staff', 'admin'];
+    }
+
+    // Entity-Specific Schema Validators
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() <= 128
+          && data.name is string && data.name.size() <= 200
+          && data.email is string && data.email.size() <= 200
+          && data.role is string && data.role in ['patient', 'staff', 'admin'];
+    }
+
+    function isValidAppointment(data) {
+      return data.appointmentId is string && data.appointmentId.size() <= 128
+          && data.patientId is string && data.patientId.size() <= 128
+          && data.patientName is string && data.patientName.size() <= 200
+          && data.department is string && data.department.size() <= 100
+          && data.doctorName is string && data.doctorName.size() <= 100
+          && data.date is string && data.date.size() <= 20
+          && data.timeSlot is string && data.timeSlot.size() <= 50
+          && data.status is string && data.status in ['待確認', '已確認', '候診中', '看診中', '已完成', '已取消'];
+    }
+
+    // Rules for Users
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isStaffOrAdmin();
+      allow list: if isStaffOrAdmin(); // Only staff can browse the list of registration card files
+      
+      allow create: if isSignedIn() 
+                    && isOwner(userId)
+                    && isValidId(userId)
+                    && isValidUser(incoming())
+                    && incoming().role == 'patient' // Initial signup can only be a patient
+                    && incoming().keys().hasAll(['uid', 'name', 'email', 'role']) 
+                    && incoming().keys().size() >= 4;
+
+      allow update: if (isOwner(userId) 
+                       && isValidUser(incoming())
+                       && incoming().role == existing().role // Role immutability for patient
+                       && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'birthday', 'nhiNumber', 'nhiPhotoUrl']))
+                    || isStaffOrAdmin();
+    }
+
+    // Rules for Appointments
+    match /appointments/{appointmentId} {
+      allow get: if isSignedIn() && (existing().patientId == request.auth.uid || isStaffOrAdmin());
+      allow list: if isSignedIn() && (resource.data.patientId == request.auth.uid || isStaffOrAdmin());
+
+      allow create: if isSignedIn()
+                    && isValidId(appointmentId)
+                    && isValidAppointment(incoming())
+                    && incoming().patientId == request.auth.uid // Patient matches authenticated user
+                    && incoming().status == '待確認' // Initial registration default status
+                    && incoming().createdAt == request.time;
+
+      allow update: if isSignedIn()
+                    && isValidId(appointmentId)
+                    && isValidAppointment(incoming())
+                    && incoming().patientId == existing().patientId // Immutable fields
+                    && incoming().appointmentId == existing().appointmentId
+                    && incoming().createdAt == existing().createdAt
+                    && (
+                      // Case A: Staff modifying status, queue number, or note
+                      (isStaffOrAdmin() && (existing().status in ['待確認', '已確認', '候診中', '看診中']) 
+                       && incoming().updatedAt == request.time)
+                      ||
+                      // Case B: Patient canceling their own appointment
+                      (existing().patientId == request.auth.uid 
+                       && existing().status in ['待確認', '已確認']
+                       && incoming().status == '已取消'
+                       && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+                       && incoming().updatedAt == request.time)
+                    );
+
+      allow delete: if isStaffOrAdmin();
+    }
+
+    // Rules for Doctors (Clinical details)
+    match /doctors/{doctorId} {
+      allow read: if isSignedIn();
+      allow write: if isStaffOrAdmin();
+    }
+
+    // Rules for Departments
+    match /departments/{departmentId} {
+      allow read: if isSignedIn();
+      allow write: if isStaffOrAdmin();
+    }
+  }
+}

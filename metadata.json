@@ -1,0 +1,10 @@
+{
+  "name": "陽光遠距醫療掛號與看診管理系統",
+  "description": "提供病人遠距掛號與健保卡拍照註冊、醫護端看診順序管理與診動態更新，以及科別醫師時段管理的完整醫療系統。",
+  "requestFramePermissions": [
+    "camera"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

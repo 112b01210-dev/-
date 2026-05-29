@@ -1,0 +1,87 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile containing patient registration details and NHI Card verification assets",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "birthday": { "type": "string" },
+        "nhiNumber": { "type": "string" },
+        "nhiPhotoUrl": { "type": "string" },
+        "role": { "type": "string", "enum": ["patient", "staff", "admin"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "name", "email", "role"]
+    },
+    "Appointment": {
+      "title": "Appointment",
+      "description": "Telehealth appointment booking records containing status and consultation states",
+      "type": "object",
+      "properties": {
+        "appointmentId": { "type": "string" },
+        "patientId": { "type": "string" },
+        "patientName": { "type": "string" },
+        "patientBirthday": { "type": "string" },
+        "patientNhiNumber": { "type": "string" },
+        "patientNhiPhotoUrl": { "type": "string" },
+        "department": { "type": "string" },
+        "doctorId": { "type": "string" },
+        "doctorName": { "type": "string" },
+        "date": { "type": "string" },
+        "timeSlot": { "type": "string" },
+        "chiefComplaint": { "type": "string" },
+        "isFirstVisit": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["待確認", "已確認", "候診中", "看診中", "已完成", "已取消"] },
+        "queueNumber": { "type": "number" },
+        "staffNote": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["appointmentId", "patientId", "patientName", "department", "doctorName", "date", "timeSlot", "status"]
+    },
+    "Doctor": {
+      "title": "Doctor",
+      "description": "Doctor metadata managed by clinic administrators",
+      "type": "object",
+      "properties": {
+        "doctorId": { "type": "string" },
+        "name": { "type": "string" },
+        "department": { "type": "string" },
+        "isAvailable": { "type": "boolean" }
+      },
+      "required": ["doctorId", "name", "department"]
+    },
+    "Department": {
+      "title": "Department",
+      "description": "Hospital medical clinical departments",
+      "type": "object",
+      "properties": {
+        "departmentId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["departmentId", "name"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Store patient, staff, or admin user verification and role records"
+    },
+    "appointments/{appointmentId}": {
+      "schema": "Appointment",
+      "description": "Store patients' remote telehealth consultation appointments"
+    },
+    "doctors/{doctorId}": {
+      "schema": "Doctor",
+      "description": "Store clinician rosters associated with medical specialties"
+    },
+    "departments/{departmentId}": {
+      "schema": "Department",
+      "description": "Store specialty catalog definitions"
+    }
+  }
+}
